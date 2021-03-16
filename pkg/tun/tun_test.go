@@ -7,17 +7,15 @@ import (
 	"os"
 	"os/signal"
 	"sync"
-	"syscall"
 	"testing"
 
+	"github.com/stretchr/testify/suite"
 	"golang.org/x/net/ipv4"
-
-	"github.com/telepresenceio/telepresence/v2/pkg/subnet"
-
-	"github.com/datawire/dlib/dlog"
+	"golang.org/x/sys/unix"
 
 	"github.com/datawire/ambassador/pkg/dtest"
-	"github.com/stretchr/testify/suite"
+	"github.com/datawire/dlib/dlog"
+	"github.com/telepresenceio/telepresence/v2/pkg/subnet"
 )
 
 func TestTun(t *testing.T) {
@@ -41,7 +39,7 @@ func (ts *tunSuite) SetupSuite() {
 	t.Cleanup(cancel)
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGABRT, syscall.SIGHUP)
+	signal.Notify(sigCh, unix.SIGINT, unix.SIGTERM, unix.SIGQUIT, unix.SIGABRT, unix.SIGHUP)
 	go func() {
 		<-sigCh
 		cancel()

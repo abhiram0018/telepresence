@@ -9,7 +9,6 @@ import (
 	"os"
 	"runtime"
 	"sync"
-	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -40,7 +39,7 @@ func OpenTun() (*Device, error) {
 		return nil, err
 	}
 
-	if err = syscall.SetNonblock(fd, true); err != nil {
+	if err = unix.SetNonblock(fd, true); err != nil {
 		return nil, err
 	}
 
@@ -48,7 +47,7 @@ func OpenTun() (*Device, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Device{os.NewFile(uintptr(fd), ""), name}, nil
+	return &Device{File: os.NewFile(uintptr(fd), ""), name: name}, nil
 }
 
 func (t *Device) AddSubnet(_ context.Context, subnet *net.IPNet, to net.IP) error {
@@ -97,7 +96,7 @@ func (t *Device) Read(into []byte) (int, error) {
 
 func (t *Device) Write(from []byte) (int, error) {
 	if len(from) == 0 {
-		return 0, syscall.EIO
+		return 0, unix.EIO
 	}
 
 	buf := bufPool.Get().([]byte)
@@ -109,9 +108,9 @@ func (t *Device) Write(from []byte) (int, error) {
 	wBuf := buf[:len(from)+4]
 	ipVer := from[0] >> 4
 	if ipVer == 4 {
-		wBuf[3] = syscall.AF_INET
+		wBuf[3] = unix.AF_INET
 	} else if ipVer == 6 {
-		wBuf[3] = syscall.AF_INET6
+		wBuf[3] = unix.AF_INET6
 	} else {
 		return 0, errors.New("unable to determine IP version from packet")
 	}
