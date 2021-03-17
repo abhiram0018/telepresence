@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
-	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/unix"
 
 	"github.com/datawire/ambassador/pkg/dtest"
@@ -52,13 +51,13 @@ func (ts *tunSuite) SetupSuite() {
 	ts.tun = tun
 }
 
-func (ts *tunSuite) reader() (<-chan []byte, <-chan error) {
-	buf := make([]byte, 0x400)
+func reader(tun *Device) (<-chan []byte, <-chan error) {
+	buf := make([]byte, 0x10000)
 	dataCh := make(chan []byte)
 	errCh := make(chan error)
 	go func() {
 		for {
-			n, err := ts.tun.Read(buf)
+			n, err := tun.Read(buf)
 			if err != nil {
 				errCh <- err
 			} else {
@@ -69,26 +68,26 @@ func (ts *tunSuite) reader() (<-chan []byte, <-chan error) {
 	return dataCh, errCh
 }
 
-func (ts *tunSuite) writer(dataChan <-chan []byte) {
+func writer(c context.Context, tun *Device, dataChan <-chan []byte) {
 	go func() {
 		for {
 			select {
 			case buf := <-dataChan:
-				_, err := ts.tun.Write(buf)
+				_, err := tun.Write(buf)
 				if err != nil {
-					if ts.ctx.Err() != nil {
+					if c.Err() != nil {
 						err = nil
 					}
 					return
 				}
-			case <-ts.ctx.Done():
+			case <-c.Done():
 				return
 			}
 		}
 	}()
 }
 
-func (ts *tunSuite) TestPtP() {
+func (ts *tunSuite) TestTunnel() {
 	require := ts.Require()
 	addr, err := subnet.FindAvailableClassC()
 	require.NoError(err)
@@ -106,7 +105,7 @@ func (ts *tunSuite) TestPtP() {
 
 	require.NoError(ts.tun.AddSubnet(ts.ctx, addr, to))
 
-	dataChan, errChan := ts.reader()
+	dataChan, errChan := reader(ts.tun)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -115,7 +114,70 @@ func (ts *tunSuite) TestPtP() {
 			select {
 			case buf := <-dataChan:
 				// Skip everything but ipv4 UDP requests to dnsIP port 53
-				h, err := ipv4.ParseHeader(buf)
+				h, err := ParseIPv4Header(buf)
+				require.NoError(err)
+				if !h.Dst.Equal(testIP) {
+					dlog.Info(ts.ctx, h)
+					continue
+				}
+				buf = buf[:h.TotalLen]
+				if h.Protocol == udpProto {
+					// We've got an UDP package to our test destination
+					dg := udpDatagram(buf[h.Len:])
+					if dg.destination() == 8080 {
+						testDataReceived = bytes.Equal(testData, dg.body())
+						return
+					}
+				}
+			case <-ts.ctx.Done():
+				dlog.Info(ts.ctx, "context cancelled")
+				return
+			case err = <-errChan:
+				if ts.ctx.Err() == nil {
+					require.NoError(err)
+				}
+				return
+			}
+		}
+	}()
+
+	conn, err := net.Dial("udp", testIP.String()+":8080")
+	require.NoError(err)
+	defer conn.Close()
+	_, err = conn.Write(testData)
+	require.NoError(err)
+	wg.Wait()
+	require.True(testDataReceived)
+}
+
+func (ts *tunSuite) TestFakeReader() {
+	require := ts.Require()
+	addr, err := subnet.FindAvailableClassC()
+	require.NoError(err)
+
+	to := make(net.IP, 4)
+	copy(to, addr.IP)
+	to[3] = 1
+
+	testIP := make(net.IP, 4)
+	copy(testIP, addr.IP)
+	testIP[3] = 123
+
+	testData := []byte("some stuff")
+	testDataReceived := false
+
+	require.NoError(ts.tun.AddSubnet(ts.ctx, addr, to))
+
+	dataChan, errChan := reader(ts.tun)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case buf := <-dataChan:
+				// Skip everything but ipv4 UDP requests to dnsIP port 53
+				h, err := ParseIPv4Header(buf)
 				require.NoError(err)
 				buf = buf[:h.TotalLen]
 				if h.Dst.Equal(testIP) && h.Protocol == udpProto {
