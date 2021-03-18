@@ -532,7 +532,7 @@ func (ki *installer) ensureAgent(c context.Context, namespace, name, portName, a
 }
 
 func (ki *installer) waitForApply(c context.Context, namespace, name string, dep *kates.Deployment) error {
-	c, cancel := context.WithTimeout(c, 1*time.Minute)
+	c, cancel := context.WithTimeout(c, client.GetConfig(c).Timeouts.Apply)
 	defer cancel()
 
 	origGeneration := int64(0)

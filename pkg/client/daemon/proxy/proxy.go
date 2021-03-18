@@ -9,7 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
-	"time"
+
+	"github.com/telepresenceio/telepresence/v2/pkg/client"
 
 	"golang.org/x/net/proxy"
 	"golang.org/x/sync/semaphore"
@@ -135,7 +136,7 @@ func (pxy *Proxy) handleConnection(c context.Context, conn *net.TCPConn) {
 	}
 
 	dlog.Debugf(c, "SOCKS5 DialContext %s -> %s", "localhost:1080", host)
-	tc, cancel := context.WithTimeout(c, 5*time.Second)
+	tc, cancel := context.WithTimeout(c, client.GetConfig(c).Timeouts.ProxyDial)
 	defer cancel()
 	px, err := dialer.(proxy.ContextDialer).DialContext(tc, "tcp", host)
 	if err != nil {

@@ -19,9 +19,6 @@ import (
 	"github.com/telepresenceio/telepresence/v2/pkg/client"
 )
 
-// Consider making this configurable at some point
-const connectTimeout = 20 * time.Second
-
 type nameMeta struct {
 	Name string `json:"name"`
 }
@@ -147,8 +144,7 @@ func (kc *k8sCluster) portForwardAndThen(
 
 // check uses a non-caching DiscoveryClientConfig to retrieve the server version
 func (kc *k8sCluster) check(c context.Context) error {
-	c, cancel := context.WithTimeout(c, connectTimeout)
-	defer cancel()
+	// No timeout is needed here. The context that is passed in already has one.
 	dc, err := discovery.NewDiscoveryClientForConfig(kc.config)
 	if err != nil {
 		return err

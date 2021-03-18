@@ -148,7 +148,7 @@ func (tm *trafficManager) initGrpc(c context.Context, portsIf interface{}) (err 
 	tm.sshPort = int32(sshPort)
 
 	// First check. Establish connection
-	tc, cancel := context.WithTimeout(c, connectTimeout)
+	tc, cancel := context.WithTimeout(c, client.GetConfig(c).Timeouts.TrafficManagerConnect)
 	defer cancel()
 
 	var conn *grpc.ClientConn

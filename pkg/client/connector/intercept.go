@@ -227,7 +227,7 @@ func (tm *trafficManager) addIntercept(c context.Context, ir *rpc.CreateIntercep
 
 	// The agent is in place and the traffic-manager has acknowledged the creation of the intercept. It
 	// should become active within a few seconds.
-	c, cancel := context.WithTimeout(c, 5*time.Second)
+	c, cancel := context.WithTimeout(c, client.GetConfig(c).Timeouts.Intercept)
 	defer cancel()
 	if ii, err = tm.waitForActiveIntercept(c, ii.Id); err != nil {
 		return &rpc.InterceptResult{
@@ -339,7 +339,7 @@ func (tm *trafficManager) waitForActiveIntercept(ctx context.Context, id string)
 }
 
 func (tm *trafficManager) waitForAgent(ctx context.Context, name string) (*manager.AgentInfo, error) {
-	ctx, cancel := context.WithTimeout(ctx, 120*time.Second) // installing a new agent can take some time
+	ctx, cancel := context.WithTimeout(ctx, client.GetConfig(ctx).Timeouts.AgentInstall) // installing a new agent can take some time
 	defer cancel()
 
 	stream, err := tm.managerClient.WatchAgents(ctx, tm.session())
