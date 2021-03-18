@@ -15,6 +15,7 @@
 import argparse
 import os
 import re
+from functools import partial
 from subprocess import CalledProcessError
 from typing import Callable, Dict
 
@@ -206,8 +207,10 @@ def legacy_setup(runner: Runner,
             operation = swap_deployment_openshift
             deployment_type = "deploymentconfig"
         else:
-            operation = supplant_deployment
-            deployment_type = "deployment"
+            operation = partial(
+                supplant_deployment, deployment_type=args.deployment_type
+            )
+            deployment_type = args.deployment_type
 
     # minikube/minishift break DNS because DNS gets captured, sent to minikube,
     # which sends it back to the DNS server set by host, resulting in a DNS
